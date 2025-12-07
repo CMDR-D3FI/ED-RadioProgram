@@ -2,6 +2,12 @@
 
 An Elite Dangerous Market Connector (EDMC) plugin that displays current radio program information from online radio stations, both in the EDMC interface and as an in-game overlay.
 
+<img width="594" height="274" alt="Image" src="https://github.com/user-attachments/assets/b0499b7b-3b46-4cae-aecf-28f673958d52" />
+
+<img width="420" height="183" alt="Image" src="https://github.com/user-attachments/assets/4b5f479d-56c1-4201-90b8-0f9d9586521b" />
+
+<img width="509" height="370" alt="Image" src="https://github.com/user-attachments/assets/d92b25a8-9612-47af-b986-a63bdf090683" />
+
 ## Features
 
 - 📻 **Real-time Program Information**: Displays current program name, time slot, description, and presenter
