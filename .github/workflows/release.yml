@@ -1,0 +1,72 @@
+name: Create Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+      
+    - name: Get version from tag
+      id: get_version
+      run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+      
+    - name: Create release directory
+      run: mkdir -p release/ED-RadioProgram
+      
+    - name: Copy plugin files
+      run: |
+        cp load.py release/ED-RadioProgram/
+        cp README.md release/ED-RadioProgram/
+        cp LICENSE release/ED-RadioProgram/
+        cp -r parsers release/ED-RadioProgram/
+        
+    - name: Create ZIP file
+      run: |
+        cd release
+        zip -r ED-RadioProgram-${{ steps.get_version.outputs.VERSION }}.zip ED-RadioProgram/
+        
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.ref }}
+        release_name: ED-RadioProgram ${{ steps.get_version.outputs.VERSION }}
+        body: |
+          ## ED-RadioProgram ${{ steps.get_version.outputs.VERSION }}
+          
+          ### Installation
+          1. Download the ZIP file below
+          2. Extract to your EDMC plugins folder:
+             - Windows: `%LOCALAPPDATA%\EDMarketConnector\plugins`
+             - Mac: `~/Library/Application Support/EDMarketConnector/plugins`
+             - Linux: `~/.local/share/EDMarketConnector/plugins`
+          3. Restart EDMC
+          
+          ### What's in this release
+          See the [README](https://github.com/${{ github.repository }}/blob/${{ steps.get_version.outputs.VERSION }}/README.md) for full details.
+          
+          ### Requirements
+          - EDMC 5.0.0 or higher
+          - Python 3.7+ (included with EDMC)
+          - EDMCOverlay (optional, for in-game overlay)
+        draft: false
+        prerelease: false
+        
+    - name: Upload Release Asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./release/ED-RadioProgram-${{ steps.get_version.outputs.VERSION }}.zip
+        asset_name: ED-RadioProgram-${{ steps.get_version.outputs.VERSION }}.zip
+        asset_content_type: application/zip
