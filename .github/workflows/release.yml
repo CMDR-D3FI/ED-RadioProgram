@@ -5,13 +5,16 @@ on:
     tags:
       - 'v*'
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
     
     steps:
     - name: Checkout code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       
     - name: Get version from tag
       id: get_version
@@ -32,14 +35,10 @@ jobs:
         cd release
         zip -r ED-RadioProgram-${{ steps.get_version.outputs.VERSION }}.zip ED-RadioProgram/
         
-    - name: Create Release
-      id: create_release
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - name: Create Release and Upload Asset
+      uses: softprops/action-gh-release@v2
       with:
-        tag_name: ${{ github.ref }}
-        release_name: ED-RadioProgram ${{ steps.get_version.outputs.VERSION }}
+        name: ED-RadioProgram ${{ steps.get_version.outputs.VERSION }}
         body: |
           ## ED-RadioProgram ${{ steps.get_version.outputs.VERSION }}
           
@@ -58,15 +57,10 @@ jobs:
           - EDMC 5.0.0 or higher
           - Python 3.7+ (included with EDMC)
           - EDMCOverlay (optional, for in-game overlay)
+          
+          ### Changes
+          ${{ github.event.head_commit.message }}
+        files: |
+          release/ED-RadioProgram-${{ steps.get_version.outputs.VERSION }}.zip
         draft: false
         prerelease: false
-        
-    - name: Upload Release Asset
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./release/ED-RadioProgram-${{ steps.get_version.outputs.VERSION }}.zip
-        asset_name: ED-RadioProgram-${{ steps.get_version.outputs.VERSION }}.zip
-        asset_content_type: application/zip
