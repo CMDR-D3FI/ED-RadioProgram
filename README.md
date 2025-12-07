@@ -6,9 +6,12 @@ An Elite Dangerous Market Connector (EDMC) plugin that displays current radio pr
 
 - 📻 **Real-time Program Information**: Displays current program name, time slot, description, and presenter
 - 🎮 **In-Game Overlay**: Shows program info directly in Elite Dangerous (requires EDMCOverlay)
+- 🎨 **Styled Radio Station Overlay**: Beautiful multi-color display with decorative borders and emojis (🎵 🎙️ ⏰)
+- 📐 **Resolution-Aware Positioning**: Overlay scales perfectly to ANY screen resolution
+- 🖥️ **Screen Resolution Configuration**: Choose from common presets or set custom resolution
 - 📍 **Configurable Overlay Position**: Choose from 8 screen positions for the in-game overlay
+- ✂️ **Smart Text Wrapping**: Long program names and descriptions wrap cleanly within the overlay box
 - 🔄 **Auto-Refresh**: Automatically updates program information at configurable intervals (5-60 minutes)
-- 🎨 **Clean UI**: Integrated seamlessly into EDMC's main window
 - 🌐 **API-Based**: Uses JSON API for reliable, fast data retrieval
 - 🐍 **Python 3.x**: Modern, clean Python 3 codebase
 
@@ -52,9 +55,17 @@ More station types can be added in the future!
   - Default: 10 minutes
   - Recommended: 10-15 minutes to avoid excessive API calls
 
+- **Game Screen Resolution**: Select your Elite Dangerous game resolution for proper overlay positioning
+  - **1920x1080 (Full HD)**: Standard Full HD resolution
+  - **1920x1200 (WUXGA)**: Widescreen UXGA resolution
+  - **2560x1440 (2K)**: Quad HD resolution
+  - **3840x2160 (4K)**: Ultra HD / 4K resolution
+  - **Custom**: Enter your exact resolution (width x height)
+  - ⚠️ **Important**: Setting the correct resolution ensures the overlay appears in the right position!
+
 - **Enable in-game overlay**: Toggle the in-game overlay on/off
   - Requires EDMCOverlay plugin to be installed
-  - Shows program info with 50% transparent background
+  - Shows program info with styled radio station display and 70% transparent background
 
 - **Overlay Position**: Choose where the overlay appears on your screen
   - **Top-Left**: Upper left corner (default)
@@ -81,18 +92,41 @@ Once configured, the plugin will display:
 
 ### In-Game Overlay
 
-When enabled, program information is displayed in-game with:
-- Semi-transparent black background (50% opacity)
-- Yellow text for high visibility
-- Configurable position (8 screen positions available)
-- Smart text alignment based on position
-- Auto-updates with each refresh cycle
+When enabled, program information is displayed in-game with a beautiful **radio station-styled design**:
 
-The overlay shows:
-- Program name (large text)
-- Time slot (HH:MM - HH:MM Uhr)
-- Presenter name (if available)
-- Description (truncated to 80 characters if too long)
+**Visual Design:**
+- Semi-transparent black background (70% opacity for better readability)
+- Decorative borders using box-drawing characters (╔═══╗)
+- Multi-color text scheme for a professional radio station look
+- Emoji icons for visual interest (🎵 🎙️ ⏰)
+- Smart text wrapping - long text automatically fits within the box
+
+**Color Scheme:**
+- 🎵 **Cyan** (#00FFFF) - Program name (large, bold) - like LED displays
+- ⏰ **Green** (#00FF00) - Time slot - digital clock style
+- 🎙️ **Orange** (#FFA500) - Presenter name - warm and inviting
+- **White** (#FFFFFF) - Description text - clean and readable
+- **Cyan borders** - Professional framing
+
+**What the overlay displays:**
+```
+╔════════════════════════════════════╗
+║ 🎵 Program Name                    ║
+║────────────────────────────────────║
+║ ⏰ 14:00 - 16:00 Uhr               ║
+║ 🎙️ Presenter Name                  ║
+║────────────────────────────────────║
+║ Description text that wraps        ║
+║ nicely within the box              ║
+╚════════════════════════════════════╝
+```
+
+**Features:**
+- Configurable position (8 screen positions available)
+- Smart text alignment based on position (left/center/right)
+- Resolution-aware scaling - works on any screen size
+- Auto-updates with each refresh cycle
+- Long descriptions wrap cleanly (max 3 lines) with "..." indicator
 
 ### Changing Overlay Position
 
@@ -129,12 +163,21 @@ Click the **Refresh** button in EDMC to immediately fetch the latest program inf
 - Graceful error handling for network issues
 
 ### Overlay Positioning
-The overlay uses coordinate-based positioning with smart alignment:
-- **Left positions**: Text starts from the left edge
-- **Middle positions**: Text and background are centered
-- **Right positions**: Text and background are right-aligned
+The overlay uses a **percentage-based positioning system** that scales to any resolution:
+- Positions are calculated as percentages of screen dimensions (e.g., 3% from left, 8% from top)
+- Automatically adapts to your configured game resolution (1920x1080, 1920x1200, 2K, 4K, or custom)
+- Smart text alignment based on position:
+  - **Left positions**: Text starts from the left edge
+  - **Middle positions**: Text and background are centered horizontally
+  - **Right positions**: Text and background are right-aligned
+- No more off-screen text or misaligned overlays!
 
-Coordinates are optimized for 1920x1080 resolution but work with other resolutions.
+### Text Wrapping
+- Program names wrap at 32 characters per line
+- Presenter names wrap at 30 characters per line
+- Descriptions wrap at 34 characters per line (maximum 3 lines shown)
+- Long descriptions automatically show "..." when truncated
+- Word-aware wrapping - never breaks in the middle of words
 
 ## Troubleshooting
 
@@ -162,9 +205,19 @@ Coordinates are optimized for 1920x1080 resolution but work with other resolutio
 - Try changing the overlay position if text is off-screen
 
 ### Overlay text cut off or off-screen
+- **First: Check your Game Screen Resolution setting!** 
+  - Go to EDMC Settings → ED-RadioProgram tab
+  - Select your correct game resolution from the dropdown
+  - If using a custom resolution, enter the exact width x height
 - Try a different overlay position from the dropdown
-- Some positions work better depending on your game resolution
-- Middle positions typically work best for centered text
+- Middle positions typically work best for most resolutions
+- The plugin now uses percentage-based positioning, so correct resolution is crucial!
+
+### Overlay appears in wrong position
+- Verify your **Game Screen Resolution** setting matches your actual game resolution
+- Common resolutions: 1920x1080, 1920x1200, 2560x1440, 3840x2160
+- After changing resolution, close and reopen the overlay to apply changes
+- Try toggling the overlay off and on again with the button in EDMC
 
 ## Future Enhancements
 
@@ -202,6 +255,25 @@ Special thanks to:
 - ORF (Austrian Broadcasting Corporation) for their excellent radio programming and open API
 
 ## Changelog
+
+### Version 1.2.0
+- 🎨 **Styled Radio Station Overlay** with multi-color design
+  - Cyan program names, green time slots, orange presenters, white descriptions
+  - Decorative box-drawing borders (╔═══╗)
+  - Emoji icons for visual interest (🎵 🎙️ ⏰)
+- 📐 **Resolution-Aware Positioning** - overlay scales to ANY screen resolution
+  - Percentage-based coordinate system
+  - No more off-screen overlays!
+- 🖥️ **Screen Resolution Configuration** added to settings
+  - Common presets: 1920x1080, 1920x1200, 2K, 4K
+  - Custom resolution option for any screen size
+- ✂️ **Smart Text Wrapping** implementation
+  - Program names wrap at 32 characters
+  - Descriptions wrap at 34 characters (max 3 lines)
+  - Word-aware wrapping - never breaks mid-word
+- 🔍 **Improved Readability** - background opacity increased to 70%
+- 🎯 **Fixed Positioning** for all 8 screen positions
+- 📝 **Better Alignment** for center and right positions
 
 ### Version 1.1.0
 - ✨ Added configurable overlay positions (8 positions)

@@ -46,6 +46,8 @@ CFG_STATION_URL = "RadioProgramURL"
 CFG_STATION_TYPE = "RadioProgramStationType"
 CFG_OVERLAY_ENABLED = "RadioProgramOverlayEnabled"
 CFG_OVERLAY_POSITION = "RadioProgramOverlayPosition"
+CFG_SCREEN_WIDTH = "RadioProgramScreenWidth"
+CFG_SCREEN_HEIGHT = "RadioProgramScreenHeight"
 CFG_REFRESH_INTERVAL = "RadioProgramRefreshInterval"
 
 # Default values
@@ -53,17 +55,28 @@ DEFAULT_URL = "https://audioapi.orf.at/oe1/api/json/current/broadcasts"
 DEFAULT_STATION_TYPE = "ORF Sound"
 DEFAULT_REFRESH_INTERVAL = 10  # minutes
 DEFAULT_OVERLAY_POSITION = "top-left"
+DEFAULT_SCREEN_WIDTH = 1920
+DEFAULT_SCREEN_HEIGHT = 1080
 
-# Overlay position presets (x, y coordinates)
+# Overlay position presets (percentage-based for scaling)
 OVERLAY_POSITIONS = {
-    "top-left": (50, 100),
-    "top-middle": (450, 100),
-    "top-right": (850, 100),
-    "middle-left": (50, 300),
-    "middle-right": (850, 300),
-    "bottom-left": (50, 500),
-    "bottom-middle": (450, 500),
-    "bottom-right": (850, 500)
+    "top-left": (0.03, 0.08),      # 3% from left, 8% from top
+    "top-middle": (0.40, 0.08),     # 40% from left (shifted left for better centering), 8% from top
+    "top-right": (0.85, 0.08),      # 85% from left (adjusted to stay on-screen), 8% from top
+    "middle-left": (0.03, 0.45),    # 3% from left, 45% from top (middle)
+    "middle-right": (0.85, 0.45),   # 85% from left (adjusted to stay on-screen), 45% from top
+    "bottom-left": (0.03, 0.75),    # 3% from left, 75% from top (raised from 82%)
+    "bottom-middle": (0.40, 0.75),  # 40% from left (shifted left), 75% from top (raised from 82%)
+    "bottom-right": (0.85, 0.75)    # 85% from left (adjusted), 75% from top (raised from 82%)
+}
+
+# Common screen resolutions
+SCREEN_RESOLUTIONS = {
+    "1920x1080 (Full HD)": (1920, 1080),
+    "1920x1200 (WUXGA)": (1920, 1200),
+    "2560x1440 (2K)": (2560, 1440),
+    "3840x2160 (4K)": (3840, 2160),
+    "Custom": (0, 0)  # User will enter manually
 }
 
 
@@ -75,6 +88,8 @@ class RadioProgramPlugin:
         self.station_type = DEFAULT_STATION_TYPE
         self.overlay_enabled = True
         self.overlay_position = DEFAULT_OVERLAY_POSITION
+        self.screen_width = DEFAULT_SCREEN_WIDTH
+        self.screen_height = DEFAULT_SCREEN_HEIGHT
         self.refresh_interval = DEFAULT_REFRESH_INTERVAL
         
         self.program_data = None
@@ -111,6 +126,14 @@ class RadioProgramPlugin:
         self.overlay_enabled = config.get_bool(CFG_OVERLAY_ENABLED, default=True)
         self.overlay_position = config.get(CFG_OVERLAY_POSITION) or DEFAULT_OVERLAY_POSITION
         
+        # Load screen resolution
+        try:
+            self.screen_width = config.get_int(CFG_SCREEN_WIDTH) or DEFAULT_SCREEN_WIDTH
+            self.screen_height = config.get_int(CFG_SCREEN_HEIGHT) or DEFAULT_SCREEN_HEIGHT
+        except:
+            self.screen_width = DEFAULT_SCREEN_WIDTH
+            self.screen_height = DEFAULT_SCREEN_HEIGHT
+        
         # Validate overlay position
         if self.overlay_position not in OVERLAY_POSITIONS:
             self.overlay_position = DEFAULT_OVERLAY_POSITION
@@ -130,6 +153,8 @@ class RadioProgramPlugin:
         config.set(CFG_STATION_TYPE, self.station_type)
         config.set(CFG_OVERLAY_ENABLED, self.overlay_enabled)
         config.set(CFG_OVERLAY_POSITION, self.overlay_position)
+        config.set(CFG_SCREEN_WIDTH, self.screen_width)
+        config.set(CFG_SCREEN_HEIGHT, self.screen_height)
         config.set(CFG_REFRESH_INTERVAL, self.refresh_interval)
 
     def toggle_overlay(self):
@@ -146,6 +171,42 @@ class RadioProgramPlugin:
             if self.overlay_button:
                 self.overlay_button.config(text="Show Overlay")
 
+    def _wrap_text(self, text, max_chars=50):
+        """
+        Wrap text to fit within specified character width
+        
+        Args:
+            text: Text to wrap
+            max_chars: Maximum characters per line
+            
+        Returns:
+            List of wrapped lines
+        """
+        if not text or len(text) <= max_chars:
+            return [text] if text else []
+        
+        words = text.split()
+        lines = []
+        current_line = []
+        current_length = 0
+        
+        for word in words:
+            word_length = len(word)
+            # +1 for space
+            if current_length + word_length + (1 if current_line else 0) <= max_chars:
+                current_line.append(word)
+                current_length += word_length + (1 if current_line else 0)
+            else:
+                if current_line:
+                    lines.append(' '.join(current_line))
+                current_line = [word]
+                current_length = word_length
+        
+        if current_line:
+            lines.append(' '.join(current_line))
+        
+        return lines
+
     def clear_overlay(self):
         """Clear all overlay messages"""
         if not OVERLAY_AVAILABLE or not self.overlay_client:
@@ -155,14 +216,14 @@ class RadioProgramPlugin:
             # Clear background shape
             self.overlay_client.send_shape("radioprogram_bg", "rect", "#000000", "#000000", 0, 0, 1, 1, ttl=1)
             
-            # Clear all overlay messages
-            for i in range(10):
+            # Clear all overlay messages  
+            for i in range(20):  # Increased for more lines
                 self.overlay_client.send_message(f"radioprogram_{i}", "", "yellow", 0, 0, ttl=1)
         except Exception as e:
             print(f"ED-RadioProgram: Error clearing overlay: {e}")
 
     def update_overlay(self):
-        """Update the overlay with current program data"""
+        """Update the overlay with current program data - Radio Station Styled"""
         if not self.overlay_enabled or not OVERLAY_AVAILABLE or not self.overlay_client:
             return
         
@@ -171,94 +232,129 @@ class RadioProgramPlugin:
             return
         
         try:
-            # Get position coordinates from selected position
-            overlay_x, overlay_y = OVERLAY_POSITIONS.get(self.overlay_position, OVERLAY_POSITIONS[DEFAULT_OVERLAY_POSITION])
+            # Calculate TTL: refresh interval + 1 minute buffer (in seconds)
+            ttl_seconds = (self.refresh_interval + 1) * 60
             
+            # Get position percentages and convert to actual pixels based on resolution
+            pos_x_pct, pos_y_pct = OVERLAY_POSITIONS.get(self.overlay_position, OVERLAY_POSITIONS[DEFAULT_OVERLAY_POSITION])
+            overlay_x = int(pos_x_pct * self.screen_width)
+            overlay_y = int(pos_y_pct * self.screen_height)
+            
+            # Build styled overlay content
             lines = []
-            line_sizes = []
+            colors = []
+            sizes = []
             
-            # Program name (large)
+            # Top border
+            lines.append("╔════════════════════════════════════╗")
+            colors.append("#00FFFF")  # Cyan
+            sizes.append("normal")
+            
+            # Program name with music note icons (large, cyan)
             program_name = self.program_data.get('program_name', 'Unknown Program')
-            lines.append(f"=== {program_name} ===")
-            line_sizes.append("large")
+            wrapped_name = self._wrap_text(program_name, 32)
+            for name_line in wrapped_name:
+                lines.append(f"║ 🎵 {name_line}")
+                colors.append("#00FFFF")  # Cyan for station name
+                sizes.append("large")
             
-            # Time slot
+            # Separator
+            lines.append("║────────────────────────────────────║")
+            colors.append("#00FFFF")
+            sizes.append("normal")
+            
+            # Time slot (green like digital clock)
             time_slot = self.program_data.get('time_slot', '')
             if time_slot:
-                lines.append(f"Time: {time_slot}")
-                line_sizes.append("normal")
+                lines.append(f"║ ⏰ {time_slot}")
+                colors.append("#00FF00")  # Green
+                sizes.append("normal")
             
-            # Author/Presenter
+            # Presenter (orange, warm)
             author = self.program_data.get('author', '')
             if author:
-                lines.append(f"By: {author}")
-                line_sizes.append("normal")
+                wrapped_author = self._wrap_text(author, 30)
+                for author_line in wrapped_author:
+                    lines.append(f"║ 🎙️ {author_line}")
+                    colors.append("#FFA500")  # Orange
+                    sizes.append("normal")
             
-            # Description (truncate if too long)
+            # Separator before description
+            if author or time_slot:
+                lines.append("║────────────────────────────────────║")
+                colors.append("#00FFFF")
+                sizes.append("normal")
+            
+            # Description (white, wrapped)
             description = self.program_data.get('description', '')
             if description:
-                if len(description) > 80:
-                    description = description[:77] + "..."
-                lines.append(description)
-                line_sizes.append("normal")
+                wrapped_desc = self._wrap_text(description, 34)
+                for desc_line in wrapped_desc[:3]:  # Max 3 lines for description
+                    lines.append(f"║ {desc_line}")
+                    colors.append("#FFFFFF")  # White
+                    sizes.append("normal")
+                if len(wrapped_desc) > 3:
+                    lines.append("║ ...")
+                    colors.append("#FFFFFF")
+                    sizes.append("normal")
             
-            # Calculate background box dimensions
-            max_line_length = max(len(line) for line in lines) if lines else 0
-            box_width = max(max_line_length * 8, 300)
-            box_height = sum(24 if size == "large" else 20 for size in line_sizes) + 20
+            # Bottom border
+            lines.append("╚════════════════════════════════════╝")
+            colors.append("#00FFFF")
+            sizes.append("normal")
             
-            # Adjust box position based on alignment
-            # For right-aligned positions, shift box left by its width
+            # Calculate box dimensions
+            box_width = 400  # Fixed width for consistent look
+            box_height = len(lines) * 18 + 20
+            
+            # Adjust position based on alignment
             if "right" in self.overlay_position:
-                box_x = overlay_x - box_width - 10
-            # For middle positions, center the box
+                box_x = overlay_x - box_width
+                text_x = overlay_x - box_width + 10
             elif "middle" in self.overlay_position and "left" not in self.overlay_position and "right" not in self.overlay_position:
                 box_x = overlay_x - (box_width // 2)
+                text_x = box_x + 10
             else:
-                box_x = overlay_x - 10
+                box_x = overlay_x
+                text_x = overlay_x + 10
             
-            # Draw background box with 50% transparency
+            # Draw background box with transparency
             try:
                 self.overlay_client.send_shape(
                     "radioprogram_bg",
                     "rect",
                     "#000000",
-                    "rgba(0,0,0,0.5)",
+                    "rgba(0,0,0,0.7)",  # Slightly more opaque for better readability
                     box_x,
-                    overlay_y - 10,
+                    overlay_y,
                     box_width,
                     box_height,
-                    ttl=60
+                    ttl=ttl_seconds
                 )
             except Exception as e:
                 print(f"ED-RadioProgram: Could not draw background box: {e}")
             
-            # Send text to overlay
-            y_offset = overlay_y
-            for i, (line, size) in enumerate(zip(lines, line_sizes)):
-                if i < 10:
-                    # Adjust text x position for right-aligned
-                    if "right" in self.overlay_position:
-                        text_x = overlay_x - box_width
-                    elif "middle" in self.overlay_position and "left" not in self.overlay_position and "right" not in self.overlay_position:
-                        text_x = overlay_x - (box_width // 2) + 10
-                    else:
-                        text_x = overlay_x
-                    
-                    self.overlay_client.send_message(
-                        f"radioprogram_{i}",
-                        line,
-                        "yellow",
-                        text_x,
-                        y_offset,
-                        ttl=60,
-                        size=size
-                    )
-                    y_offset += 24 if size == "large" else 20
+            # Send styled text to overlay
+            y_offset = overlay_y + 5
+            for i, (line, color, size) in enumerate(zip(lines, colors, sizes)):
+                if i < 20:
+                    try:
+                        self.overlay_client.send_message(
+                            f"radioprogram_{i}",
+                            line,
+                            color,
+                            text_x,
+                            y_offset,
+                            ttl=ttl_seconds,
+                            size=size
+                        )
+                        y_offset += 22 if size == "large" else 18
+                    except Exception as e:
+                        print(f"ED-RadioProgram: Error sending line {i}: {e}")
             
             # Clear any remaining old lines
-            for i in range(len(lines), 10):
-                self.overlay_client.send_message(f"radioprogram_{i}", "", "yellow", 0, 0, ttl=1)
+            for i in range(len(lines), 20):
+                self.overlay_client.send_message(f"radioprogram_{i}", "", "#FFFFFF", 0, 0, ttl=1)
                 
         except Exception as e:
             print(f"ED-RadioProgram: Error updating overlay: {e}")
@@ -624,6 +720,76 @@ def plugin_prefs(parent, cmdr, is_beta):
         )
     interval_spinbox.grid(row=row, column=1, sticky=tk.W, padx=10)
     
+    # Screen Resolution
+    row += 1
+    if nb:
+        res_label = nb.Label(frame, text="Game Screen Resolution:")
+    else:
+        res_label = tk.Label(frame, text="Game Screen Resolution:")
+    res_label.grid(row=row, column=0, sticky=tk.W, padx=10)
+    
+    # Find current resolution in presets
+    current_res_name = "Custom"
+    for res_name, (width, height) in SCREEN_RESOLUTIONS.items():
+        if width == plugin.screen_width and height == plugin.screen_height and res_name != "Custom":
+            current_res_name = res_name
+            break
+    
+    this.screen_resolution_var = tk.StringVar(value=current_res_name)
+    resolution_values = list(SCREEN_RESOLUTIONS.keys())
+    
+    if nb:
+        res_combo = ttk.Combobox(
+            frame,
+            textvariable=this.screen_resolution_var,
+            values=resolution_values,
+            state="readonly",
+            width=47
+        )
+    else:
+        res_combo = ttk.Combobox(
+            frame,
+            textvariable=this.screen_resolution_var,
+            values=resolution_values,
+            state="readonly",
+            width=47
+        )
+    res_combo.grid(row=row, column=1, sticky=tk.EW, padx=10)
+    
+    # Custom resolution fields (only shown if Custom is selected)
+    row += 1
+    if nb:
+        custom_res_label = nb.Label(frame, text="Custom Resolution (WxH):")
+    else:
+        custom_res_label = tk.Label(frame, text="Custom Resolution (WxH):")
+    custom_res_label.grid(row=row, column=0, sticky=tk.W, padx=10)
+    
+    custom_frame = tk.Frame(frame)
+    custom_frame.grid(row=row, column=1, sticky=tk.W, padx=10)
+    
+    this.custom_width_var = tk.IntVar(value=plugin.screen_width)
+    this.custom_height_var = tk.IntVar(value=plugin.screen_height)
+    
+    width_spinbox = tk.Spinbox(
+        custom_frame,
+        from_=800,
+        to=7680,
+        textvariable=this.custom_width_var,
+        width=8
+    )
+    width_spinbox.pack(side=tk.LEFT, padx=2)
+    
+    tk.Label(custom_frame, text="x").pack(side=tk.LEFT)
+    
+    height_spinbox = tk.Spinbox(
+        custom_frame,
+        from_=600,
+        to=4320,
+        textvariable=this.custom_height_var,
+        width=8
+    )
+    height_spinbox.pack(side=tk.LEFT, padx=2)
+    
     # Enable Overlay checkbox
     row += 1
     if OVERLAY_AVAILABLE:
@@ -726,6 +892,26 @@ def prefs_changed(cmdr, is_beta):
                 plugin.refresh_interval = interval
         except:
             pass
+    
+    # Update screen resolution
+    if hasattr(this, 'screen_resolution_var'):
+        resolution_name = this.screen_resolution_var.get()
+        if resolution_name in SCREEN_RESOLUTIONS:
+            width, height = SCREEN_RESOLUTIONS[resolution_name]
+            # If Custom, use the custom values
+            if resolution_name == "Custom" and hasattr(this, 'custom_width_var') and hasattr(this, 'custom_height_var'):
+                try:
+                    custom_width = this.custom_width_var.get()
+                    custom_height = this.custom_height_var.get()
+                    if 800 <= custom_width <= 7680 and 600 <= custom_height <= 4320:
+                        plugin.screen_width = custom_width
+                        plugin.screen_height = custom_height
+                except:
+                    pass
+            elif width > 0 and height > 0:
+                # Use preset resolution
+                plugin.screen_width = width
+                plugin.screen_height = height
     
     # Update overlay setting
     if OVERLAY_AVAILABLE and hasattr(this, 'overlay_enabled_var'):
